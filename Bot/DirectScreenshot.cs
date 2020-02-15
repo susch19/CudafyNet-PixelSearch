@@ -30,16 +30,19 @@ namespace Bot
         private int height;
 
         private GPGPU _gpu;
-        public GPUColorRGB[] rgbValues;
+        public GPUColorBGRA[] rgbValues;
+        public bool SaveScreenshot { get; set; }
+        public string OutputFileName { get; set; }
 
 
         public DirectScreenshot(GPGPU gpu, int screenWidth, int screenHeight)
         {
+            OutputFileName = "ScreenCapture.bmp";
             const int numAdapter = 0;
             const int numOutput = 0;
 
             _gpu = gpu;
-            rgbValues = gpu.Allocate<GPUColorRGB>(screenWidth * screenHeight);
+            rgbValues = gpu.Allocate<GPUColorBGRA>(screenWidth * screenHeight);
             // Create DXGI Factory1
             factory = new Factory1();
             adapter = factory.GetAdapter1(numAdapter);
@@ -54,7 +57,6 @@ namespace Bot
             // Width/Height of desktop to capture
             width = screenWidth;
             height = screenHeight;
-
 
 
             // Create Staging texture CPU-accessible
@@ -76,7 +78,7 @@ namespace Bot
             // Duplicate the output
             duplicatedOutput = output1.DuplicateOutput(device);
 
-            var screenResource = BeginCapture();
+            var screenResource = BeginCapture(out var pp);
             screenResource.Dispose();
             duplicatedOutput.ReleaseFrame();
         }
@@ -85,47 +87,65 @@ namespace Bot
         {
         }
 
-        private SharpDX.DXGI.Resource BeginCapture()
+        private SharpDX.DXGI.Resource BeginCapture(out SharpDX.Mathematics.Interop.RawPoint pointerPos)
         {
 
             OutputDuplicateFrameInformation duplicateFrameInformation;
 
             // Try to get duplicated frame within given time
             duplicatedOutput.AcquireNextFrame(10000, out duplicateFrameInformation, out var screenResource);
+            pointerPos = duplicateFrameInformation.PointerPosition.Position;
             return screenResource;
         }
-        public void Capture()
+        public (int x, int y) Capture()
         {
-            const string outputFileName = "ScreenCapture.bmp";
-
             while (true)
             {
                 try
                 {
-                    SharpDX.DXGI.Resource screenResource = BeginCapture();
+                    using (SharpDX.DXGI.Resource screenResource = BeginCapture(out var pointerPos))
+                    {
 
-                    // copy resource into memory that can be accessed by the CPU
-                    using (var screenTexture2D = screenResource.QueryInterface<Texture2D>())
-                        device.ImmediateContext.CopyResource(screenTexture2D, screenTexture);
+                        // copy resource into memory that can be accessed by the CPU
+                        using (var screenTexture2D = screenResource.QueryInterface<Texture2D>())
+                            device.ImmediateContext.CopyResource(screenTexture2D, screenTexture);
 
-                    // Get the desktop capture texture
-                    var mapSource = device.ImmediateContext.MapSubresource(screenTexture, 0, MapMode.Read, MapFlags.None);
-                    
+                        // Get the desktop capture texture
+                        var mapSource = device.ImmediateContext.MapSubresource(screenTexture, 0, MapMode.Read, MapFlags.None);
 
-                    // Copy pixels from screen capture Texture to GDI bitmap
-                    var sourcePtr = mapSource.DataPointer;
 
-                    _gpu.CopyToDevice(sourcePtr, 0, rgbValues, 0, width * height);
-                    device.ImmediateContext.UnmapSubresource(screenTexture, 0);
+                        // Copy pixels from screen capture Texture to GDI bitmap
+                        var sourcePtr = mapSource.DataPointer;
+                        // Save the output
 
-                    // Save the output
-                    //bitmap.Save(outputFileName);
+                        if (SaveScreenshot)
+                            using (Bitmap bmp = new Bitmap(width, height, PixelFormat.Format32bppArgb))
+                            {
+                                var bmpData = bmp.LockBits(new System.Drawing.Rectangle(System.Drawing.Point.Empty, bmp.Size), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+                                unsafe
+                                {
+                                    GPUColorBGRA* dst = (GPUColorBGRA*)bmpData.Scan0;
+                                    GPUColorBGRA* src = (GPUColorBGRA*)sourcePtr;
 
-                    // Capture done
+                                    for (int i = 0; i < width * height; i++, dst++, src++)
+                                    {
+                                        *dst = *src;
+                                    }
+                                }
+                                bmp.UnlockBits(bmpData);
 
-                    screenResource.Dispose();
-                    duplicatedOutput.ReleaseFrame();
-                    return;
+                                bmp.Save(OutputFileName);
+                            }
+
+                        _gpu.CopyToDevice(sourcePtr, 0, rgbValues, 0, width * height);
+                        device.ImmediateContext.UnmapSubresource(screenTexture, 0);
+
+                        // Capture done
+
+                        duplicatedOutput.ReleaseFrame();
+                        return (pointerPos.X, pointerPos.Y);
+
+                    };
                 }
                 catch (SharpDXException e)
                 {
