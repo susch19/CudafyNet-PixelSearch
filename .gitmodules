@@ -1,0 +1,3 @@
+[submodule "Vulcan.NET"]
+	path = Vulcan.NET
+	url = https://github.com/diogotr7/Vulcan.NET.git

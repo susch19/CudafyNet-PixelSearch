@@ -161,6 +161,11 @@
   <ItemGroup>
     <Content Include="money.gif" />
   </ItemGroup>
-  <ItemGroup />
+  <ItemGroup>
+    <ProjectReference Include="..\Vulcan.NET\Vulcan.NET\Vulcan.NET.csproj">
+      <Project>{3a766d65-7187-4c7b-b525-ad0b8df750e9}</Project>
+      <Name>Vulcan.NET</Name>
+    </ProjectReference>
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

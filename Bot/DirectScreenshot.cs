@@ -117,7 +117,7 @@ namespace Bot
                         // Copy pixels from screen capture Texture to GDI bitmap
                         var sourcePtr = mapSource.DataPointer;
                         // Save the output
-
+                        
                         if (SaveScreenshot)
                             using (Bitmap bmp = new Bitmap(width, height, PixelFormat.Format32bppArgb))
                             {
