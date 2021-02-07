@@ -4,6 +4,8 @@ using Cudafy;
 using Cudafy.Host;
 using Cudafy.Translator;
 
+using Mono.CSharp;
+
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -14,7 +16,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Forms;
+//using System.Windows.Forms;
 
 using Vulcan.NET;
 
@@ -31,6 +33,7 @@ namespace Insaniquarium_Deluxe_Bot
         public const int ourscreenTop = 463;
         public const int ourscreenWidth = 64;
         public const int ourscreenHeight = 160;
+
         //public const int blockSizeX = 8;
 
         public const int screenLeft = 0;
@@ -49,6 +52,8 @@ namespace Insaniquarium_Deluxe_Bot
         private static Stopwatch watch = new Stopwatch();
         public static void Main()
         {
+            var pos = GetKeyPositions();
+
             //Thread.Sleep(3000);
 
             //Cursor.Position = new Point(screenLeft, screenTop);
@@ -59,6 +64,41 @@ namespace Insaniquarium_Deluxe_Bot
             //Thread.Sleep(200);
             //Cursor.Position = new Point(screenLeft, screenTop + screenHeight);
             //Thread.Sleep(200);
+
+            using VulcanKeyboard keyboard = VulcanKeyboard.Initialize();
+            bool initKeyboard = true;
+
+            //Dictionary<int, ConsoleKeyInfo> mapping = new Dictionary<int, ConsoleKeyInfo>();
+            //Dictionary<int, Color> alreadyClickedKeys = new Dictionary<int, Color>();
+            //int keyCodeCounter = 1;
+            //if (initKeyboard)
+            //{
+            //    for (; ; )
+            //    {
+
+            //        keyboard.SetColor(Color.Green);
+            //        //keyboard.SetKeyColor(i, Color.Green);
+            //        keyboard.SetColors(alreadyClickedKeys);
+            //        keyboard.Update();
+
+
+
+            //        var keyinfo = Console.ReadKey();
+
+            //        if (keyinfo.Key == ConsoleKey.Escape)
+            //            continue;
+            //        if((int)keyinfo.Modifiers > 0)
+            //        {
+            //            continue;
+            //        }
+            //        if(System.Enum.TryParse<Key>(keyinfo.Key.ToString().ToUpper(), out var vKey) && !alreadyClickedKeys.ContainsKey((int)vKey))
+            //        {
+            //        alreadyClickedKeys.Add((int)vKey, Color.Black);
+            //        //alreadyClickedKeys.Add((int)vKey, Color.Black);
+
+            //        }
+            //    }
+            //}
 
 
 
@@ -108,9 +148,13 @@ namespace Insaniquarium_Deluxe_Bot
             HashSet<int> ys = new HashSet<int>();
             byte b = 0;
             //Thread.Sleep(2000);
-            int count = 0;
+            int count = 120;
+
+            var keyColors = new Color[] { Color.Red, Color.Green, Color.Blue };
+            var enumVals = System.Enum.GetValues(typeof(Key)).Cast<int>().ToArray();
+
             Random r = new Random();
-            using (VulcanKeyboard keyboard = VulcanKeyboard.Initialize())
+
             using (var screenShot = new DirectScreenshot(gpu, screenWidth, screenHeight))
             {
                 if (keyboard == null)
@@ -127,15 +171,16 @@ namespace Insaniquarium_Deluxe_Bot
                     //for (int loops = 0; loops < 150; loops++)
                     //{
                     watch.Restart();
-                    (int x, int y) pointerPos = screenShot.Capture();
+                    //(int x, int y) pointerPos = ;
+                    screenShot.Capture();
 
                     //gpu.CopyToDevice(indices, devindices);
                     //gpu.Set(devindices);
                     //gpu.Launch(gridSize, blockSize).ScaleImageKernel(screenShot.rgbValues, ret, devindices, devoutput, deboutput);
-                    gpu.Launch(new dim3(keysWidth / 4, keysHeight / 3), new dim3(4, 3)).ScaleImageKernel(screenShot.rgbValues, screenWidth, screenHeight, devoutput);
+                    _ = gpu.Launch(new dim3(keysWidth / 4, keysHeight / 3), new dim3(4, 3)).EnhancedScaleImageKernel(screenShot.rgbValues, screenWidth, screenHeight, devoutput);
 
 
-                    //Thread.Sleep(500);
+                    ////Thread.Sleep(500);
                     gpu.CopyFromDevice(devoutput, output);
 
                     //var bitmap = new Bitmap(100, 16, PixelFormat.Format24bppRgb);
@@ -259,29 +304,32 @@ namespace Insaniquarium_Deluxe_Bot
                     //Console.Error.WriteLine("Milliseconds: " + watch.Elapsed.TotalMilliseconds);
 
 
+                    var color = keyColors[count % 3];
+                    keyboard.SetColor(Color.Orange);
+                    //keyboard.SetKeyColor((Key)enumVals[(count / 3)], color);
+                    //keyboard.SetKeyColor((Key)enumVals[(((count / 3)+ enumVals.Length-1) % enumVals.Length)], Color.Black);
+                    //count = (count + 1)%(enumVals.Length* 3);
+                    //keyboard.SetColor(Color.FromArgb((count >> 16) & 0xff, (count >> 8) & 0xff, count & 0xff));
+                    //count += r.Next(0, 255);
+                    //keyboard.SetColor(Color.Green);
+                    //for (int i = 0; i < 131; i++)
+                    //{
+                    //    keyboard.SetKeyColor((Key)i, Color.FromArgb(255 << 24 | r.Next(0, 255 << 16)));
+                    //}
 
-                    keyboard.SetColor(Color.Green);
-                    for (int i = 0; i < 131; i++)
-                    {
-                        keyboard.SetKeyColor((Key)i, Color.FromArgb(255 << 24 | r.Next(0, 255 << 16)));
-                    }
+                    SetKeyColorsForAmbilight(keyboard, output);
 
-                    keyboard.SetKeyColor(Key.W, Color.FromArgb((byte)output[6, 3, 0], (byte)output[6, 3, 1], (byte)output[6, 3, 2]));
-                    keyboard.SetKeyColor(Key.A, Color.FromArgb((byte)output[3, 4, 0], (byte)output[3, 4, 1], (byte)output[3, 4, 2]));
-                    keyboard.SetKeyColor(Key.S, Color.FromArgb((byte)output[7, 4, 0], (byte)output[7, 4, 1], (byte)output[7, 4, 2]));
-                    keyboard.SetKeyColor(Key.D, Color.FromArgb((byte)output[10, 4, 0], (byte)output[10, 4, 1], (byte)output[10, 4, 2]));
 
-                    keyboard.SetKeyColor(Key.NUM_ENTER, Color.FromArgb((byte)output[99, 5, 0], (byte)output[99, 5, 1], (byte)output[99, 5, 2]));
-
-                    watch.Restart();
-                    bool success = keyboard.Update();
-                    watch.Stop();
-                    //Console.WriteLine("Set colors: " + success + ", took :" + watch.ElapsedMilliseconds + "ms");
+                    //watch.Restart();
+                    keyboard.Update();
+                    //watch.Stop();
+                    //Console.WriteLine("Set colors took:" + watch.ElapsedMilliseconds + "ms");
                     elapsed += watch.Elapsed.TotalMilliseconds;
 
 
                     //Thread.Sleep((int)Math.Max((frameTime - watch.Elapsed.TotalMilliseconds), 0));
-                    Thread.Sleep(Math.Min(33, Math.Max(0, 33 - (int)elapsed)));
+                    Thread.Sleep(1);
+                    //Thread.Sleep(Math.Min(33, Math.Max(0, 33 - (int)elapsed)));
                     //clearOftens++;
                     //if (clearOftens % 20 == 0)
                     //    often.Clear();
@@ -299,6 +347,94 @@ namespace Insaniquarium_Deluxe_Bot
             gpu.FreeAll();
             Console.Read();
         }
+
+        private static List<(int, int)> GetKeyPositions()
+        {
+            var bmp = (Bitmap)Bitmap.FromFile("Untitled.png");
+
+            var bmpData = bmp.LockBits(new Rectangle(new Point(), bmp.Size), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+            var posList = new List<(int, int)>();
+
+            var bmpDebug = new Bitmap(bmp.Width, bmp.Height, PixelFormat.Format32bppArgb);
+            var bmpDataDebug = bmpDebug.LockBits(new Rectangle(new Point(), bmp.Size), ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
+
+            unsafe
+            {
+                var ptr = (byte*)bmpData.Scan0;
+                var ptrDebug = (byte*)bmpDataDebug.Scan0;
+                for (int y = 0; y < bmp.Size.Height;)
+                {
+                    bool isKey = false;
+                    int keyHeight = 999;
+                    int beginPos = 0, avgPos = 0;
+                    for (int x = 0; x < bmp.Size.Width; x++)
+                    {
+                        var baseIndex = ((y * bmp.Width) + x) * 4;
+                        
+                        if (!isKey && ptr[baseIndex] == 0)
+                        {
+                            ptrDebug[baseIndex] = 255;
+                            continue;
+                        }
+
+                        if (isKey && (ptr[baseIndex] == 0 || x == bmp.Size.Width - 1))
+                        {
+                            isKey = false;
+                            avgPos = (beginPos + x) / 2;
+                            if (posList.Any(x => x.Item1 - 10 < avgPos && x.Item1 + 10 > avgPos))
+                                continue;
+                            int yKey = y;
+                            for (; yKey < bmp.Size.Height; yKey++)
+                            {
+                                var baseIndex2 = ((yKey * bmp.Width) + avgPos) * 4;
+                                if (ptr[baseIndex2] > 0)
+                                {
+                                    continue;
+                                }
+
+                                break;
+                            }
+                            posList.Add((avgPos, (y + yKey) / 2));
+                            ptrDebug[((((y + yKey) / 2) * bmp.Width) + avgPos) * 4 + 1] = 255;
+
+                            var newKeyHeight = yKey - y;
+                            if (newKeyHeight < keyHeight)
+                                keyHeight = newKeyHeight;
+
+                        }
+                        else if (!isKey)
+                        {
+                            ptrDebug[baseIndex+2] = 255;
+                            beginPos = x;
+                            isKey = true;
+                            continue;
+                        }
+
+                    }
+                    //if (keyHeight < 999)
+                    //    y += keyHeight+3; //+3 Margin of Error on the input image
+                    //else
+                        y++;
+                }
+            }
+            bmp.UnlockBits(bmpData);
+            bmpDebug.UnlockBits(bmpDataDebug);
+            bmpDebug.Save("Test.bmp");
+            return posList;
+        }
+
+        private static void SetKeyColorsForAmbilight(VulcanKeyboard keyboard, float[,,] input)
+        {
+
+            keyboard.SetKeyColor(Key.W, Color.FromArgb((byte)input[6, 3, 0], (byte)input[6, 3, 1], (byte)input[6, 3, 2]));
+            keyboard.SetKeyColor(Key.A, Color.FromArgb((byte)input[3, 4, 0], (byte)input[3, 4, 1], (byte)input[3, 4, 2]));
+            keyboard.SetKeyColor(Key.S, Color.FromArgb((byte)input[7, 4, 0], (byte)input[7, 4, 1], (byte)input[7, 4, 2]));
+            keyboard.SetKeyColor(Key.D, Color.FromArgb((byte)input[10, 4, 0], (byte)input[10, 4, 1], (byte)input[10, 4, 2]));
+            keyboard.SetKeyColor(Key.Z, Color.FromArgb((byte)input[6, 5, 0], (byte)input[6, 5, 1], (byte)input[6, 5, 2]));
+
+            keyboard.SetKeyColor(Key.NUM_ENTER, Color.FromArgb((byte)input[99, 5, 0], (byte)input[99, 5, 1], (byte)input[99, 5, 2]));
+        }
+
         [Cudafy]
         public struct GPUColorBGRA
         {
@@ -366,6 +502,44 @@ namespace Insaniquarium_Deluxe_Bot
             output[scaledX, scaledY, 0] = sourceImage[index].Red;
             output[scaledX, scaledY, 1] = sourceImage[index].Green;
             output[scaledX, scaledY, 2] = sourceImage[index].Blue;
+        }
+
+        [Cudafy]
+        public static void EnhancedScaleImageKernel(GThread gThread, GPUColorBGRA[] sourceImage, int sourceWidth, int sourceHeight, float[,,] scaledImage)
+        {
+            var scaledX = gThread.blockIdx.x * gThread.blockDim.x + gThread.threadIdx.x;
+            var scaledY = gThread.blockIdx.y * gThread.blockDim.y + gThread.threadIdx.y;
+            EnhancedScaleImagePixel(sourceImage, sourceWidth, sourceHeight,
+            scaledImage, scaledX, scaledY);
+        }
+
+        [Cudafy]
+        private static float EnhancedScaleImagePixel(GPUColorBGRA[] sourceImage, int sourceWidth, int sourceHeight, float[,,] scaledImage, int scaledX, int scaledY)
+        {
+            var startX = scaledX * sourceWidth / scaledImage.GetLength(0);
+            var startY = scaledY * sourceHeight / scaledImage.GetLength(1);
+            var endX = (scaledX + 1) * sourceWidth / scaledImage.GetLength(0);
+            var endY = (scaledY + 1) * sourceHeight / scaledImage.GetLength(1);
+            var sumr = 0f;
+            var sumg = 0f;
+            var sumb = 0f;
+            var count = 0;
+            for (var sourceX = startX; sourceX < endX; sourceX++)
+            {
+                for (var sourceY = startY; sourceY < endY; sourceY++)
+                {
+                    var index = sourceX + sourceY * sourceWidth;
+                    sumr += sourceImage[index].Red;
+                    sumg += sourceImage[index].Green;
+                    sumb += sourceImage[index].Blue;
+                    count++;
+                }
+            }
+            scaledImage[scaledX, scaledY, 0] = (sumr / count);
+            scaledImage[scaledX, scaledY, 1] = (sumg / count);
+            scaledImage[scaledX, scaledY, 2] = (sumb / count);
+
+            return 0;
         }
 
 
@@ -453,7 +627,7 @@ namespace Insaniquarium_Deluxe_Bot
 
         public static void LeftClick(int x, int y)
         {
-            Cursor.Position = new Point(x, y);
+            //Cursor.Position = new Point(x, y);
             Thread.Sleep(100);
             Console.WriteLine($"{x}:{y}");
             mouse_event((int)(MouseEventFlags.LEFTDOWN), 0, 0, 0, 0);
@@ -533,5 +707,7 @@ namespace Insaniquarium_Deluxe_Bot
             arr[i] = arr[j];
             arr[j] = tmp;
         }
+
+
     }
 }
