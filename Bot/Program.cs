@@ -4,6 +4,8 @@ using Cudafy;
 using Cudafy.Host;
 using Cudafy.Translator;
 
+using HidSharp.Reports.Input;
+
 using Mono.CSharp;
 
 using System;
@@ -24,6 +26,11 @@ namespace Insaniquarium_Deluxe_Bot
 {
     class Program
     {
+        [System.Runtime.InteropServices.DllImportAttribute("user32.dll", EntryPoint = "BlockInput")]
+        [return: System.Runtime.InteropServices.MarshalAsAttribute(System.Runtime.InteropServices.UnmanagedType.Bool)]
+        public static extern bool BlockInput([System.Runtime.InteropServices.MarshalAsAttribute(System.Runtime.InteropServices.UnmanagedType.Bool)] bool fBlockIt);
+
+
         public const int N = 33 * 1024;
         //X2553 Y220 W64 H402
         //0x2B7177 | 666 378
@@ -50,10 +57,18 @@ namespace Insaniquarium_Deluxe_Bot
         public static dim3 blockSize = new dim3(pixelPerKeyRow, pixelPerKeyColumn);
         public static dim3 gridSize = new dim3(keysWidth, keysHeight);
         private static Stopwatch watch = new Stopwatch();
+
         public static void Main()
         {
-            var pos = GetKeyPositions();
 
+            using VulcanKeyboard keyboard = VulcanKeyboard.Initialize();
+            if (keyboard == null)
+            {
+                Console.WriteLine("Did not find vulcan!");
+                Console.ReadLine();
+                return;
+            }
+            var pos = GetKeyPositions();
             //Thread.Sleep(3000);
 
             //Cursor.Position = new Point(screenLeft, screenTop);
@@ -65,40 +80,133 @@ namespace Insaniquarium_Deluxe_Bot
             //Cursor.Position = new Point(screenLeft, screenTop + screenHeight);
             //Thread.Sleep(200);
 
-            using VulcanKeyboard keyboard = VulcanKeyboard.Initialize();
+
             bool initKeyboard = true;
+            bool fnPressed = false;
+            bool easyPressed = false;
 
-            //Dictionary<int, ConsoleKeyInfo> mapping = new Dictionary<int, ConsoleKeyInfo>();
-            //Dictionary<int, Color> alreadyClickedKeys = new Dictionary<int, Color>();
-            //int keyCodeCounter = 1;
-            //if (initKeyboard)
-            //{
-            //    for (; ; )
-            //    {
+            Dictionary<int, byte[]> mapping = new Dictionary<int, byte[]>();
+            Dictionary<int, Color> alreadyClickedKeys = new Dictionary<int, Color>();
+            if (initKeyboard)
+            {
+                var are = new AutoResetEvent(false);
+                var are2 = new AutoResetEvent(false);
+                keyboard.SetColor(Color.Black);
+                keyboard.SetKeyColor(0, Color.Green);
+                keyboard.Update();
 
-            //        keyboard.SetColor(Color.Green);
-            //        //keyboard.SetKeyColor(i, Color.Green);
-            //        keyboard.SetColors(alreadyClickedKeys);
-            //        keyboard.Update();
+                int i = 0;
+                Dictionary<string, byte[]> keys = new Dictionary<string, byte[]>() {
+                    { "esc", new byte[]{0x03, 0x00, 0xFB, 0x11 } },
+                    { "fn", new byte[]{ 0x03 ,0x00 ,0xFB, 0x77 } },
+                    { "easyshift", new byte[]{ 0x03 ,0x00 ,0x0A, 0xFF } },
+                    { "oemminus", new byte[]{ 0x03 ,0x00 , 0xFB, 0x5E } },
+
+                };
+                ByteEventArgs args = null;
+
+                keyboard.KeyPressedReceived += (object sender, ByteEventArgs even) =>
+                {
+                    args = even;
+                    are2.Set();
+                    try
+                    {
+
+                    if (args.Bytes.Take(4).SequenceEqual(keys["fn"]))
+                        return;
+                    if (args.Bytes.Take(4).SequenceEqual(keys["easyshift"]))
+                        return;
+
+                    if (fnPressed && args.Bytes.Take(4).SequenceEqual(keys["oemminus"]) && args.Bytes[4] > 0)
+                    {
+                        Console.WriteLine("You have made a custom fn hotkey :)");
+                    }
+
+                    if(easyPressed && args.Bytes.Take(4).SequenceEqual(keys["oemminus"]) && args.Bytes[4] > 0)
+                    {
+                        Console.WriteLine("You have made a custom easy hotkey :)");
+                    }
+
+                    if (even.Bytes.Take(4).SequenceEqual(keys["esc"]))
+                    {
+                        i++;
+                        keyboard.SetColor(Color.Black);
+                        //keyboard.SetKeyColor(i, Color.Green);
+                        keyboard.SetKeyColor(i / 2, Color.Green);
+                        keyboard.Update();
+                        return;
+                    }
+
+                    //i++;
+
+                    keyboard.SetColor(Color.Black);
+                    //keyboard.SetKeyColor(i, Color.Green);
+                    keyboard.SetKeyColor(i / 2, Color.Green);
+                    keyboard.Update();
+
+                        //mapping.Add(i, even.Bytes.Take(20).ToArray());
+
+                        //if (i > 300)
+                        //    are.Set();
+
+                    }
+                    catch (Exception e)
+                    {
+
+                    }
+                }; ;
+                var task = Task.Run(() =>
+                {
+                    while (true)
+                    {
+                        are2.WaitOne();
+                        if (args.Bytes.Take(4).SequenceEqual(keys["fn"]))
+                        {
+                            var block = args.Bytes[4] > 0;
+                            if (block)
+                                keyboard.SetColor(Color.Red);
+                            else
+                                keyboard.SetColor(Color.Green);
+                            keyboard.Update();
+                            fnPressed = block;
+                            try
+                            {
+
+                                BlockInput(block);
+                            }
+                            catch (Exception e)
+                            {
+                                Console.WriteLine(e.Message);
+                                BlockInput(false);
+                            }
+                        }
+                        else if(args.Bytes.Take(4).SequenceEqual(keys["easyshift"]))
+                        {
+                            var block = args.Bytes[4] < 1;
+                            if (block)
+                                keyboard.SetColor(Color.Yellow);
+                            else
+                                keyboard.SetColor(Color.Green);
+                            keyboard.Update();
+                            easyPressed = block;
+                            try
+                            {
+
+                                BlockInput(block);
+                            }
+                            catch (Exception e)
+                            {
+                                Console.WriteLine(e.Message);
+                                BlockInput(false);
+                            }
+                        }
+                    }
+                });
+                are.WaitOne();
 
 
+            }
 
-            //        var keyinfo = Console.ReadKey();
-
-            //        if (keyinfo.Key == ConsoleKey.Escape)
-            //            continue;
-            //        if((int)keyinfo.Modifiers > 0)
-            //        {
-            //            continue;
-            //        }
-            //        if(System.Enum.TryParse<Key>(keyinfo.Key.ToString().ToUpper(), out var vKey) && !alreadyClickedKeys.ContainsKey((int)vKey))
-            //        {
-            //        alreadyClickedKeys.Add((int)vKey, Color.Black);
-            //        //alreadyClickedKeys.Add((int)vKey, Color.Black);
-
-            //        }
-            //    }
-            //}
 
 
 
@@ -157,12 +265,6 @@ namespace Insaniquarium_Deluxe_Bot
 
             using (var screenShot = new DirectScreenshot(gpu, screenWidth, screenHeight))
             {
-                if (keyboard == null)
-                {
-                    Console.WriteLine("Did not find vulcan!");
-                    Console.ReadLine();
-                    return;
-                }
 
 
 
@@ -370,7 +472,7 @@ namespace Insaniquarium_Deluxe_Bot
                     for (int x = 0; x < bmp.Size.Width; x++)
                     {
                         var baseIndex = ((y * bmp.Width) + x) * 4;
-                        
+
                         if (!isKey && ptr[baseIndex] == 0)
                         {
                             ptrDebug[baseIndex] = 255;
@@ -404,7 +506,7 @@ namespace Insaniquarium_Deluxe_Bot
                         }
                         else if (!isKey)
                         {
-                            ptrDebug[baseIndex+2] = 255;
+                            ptrDebug[baseIndex + 2] = 255;
                             beginPos = x;
                             isKey = true;
                             continue;
@@ -414,7 +516,7 @@ namespace Insaniquarium_Deluxe_Bot
                     //if (keyHeight < 999)
                     //    y += keyHeight+3; //+3 Margin of Error on the input image
                     //else
-                        y++;
+                    y++;
                 }
             }
             bmp.UnlockBits(bmpData);
@@ -490,8 +592,7 @@ namespace Insaniquarium_Deluxe_Bot
         }
 
         [Cudafy]
-        public static void ScaleImageKernel(GThread gThread, GPUColorBGRA[] sourceImage, int sourceWidth,
- int sourceHeight, float[,,] output)
+        public static void ScaleImageKernel(GThread gThread, GPUColorBGRA[] sourceImage, int sourceWidth, int sourceHeight, float[,,] output)
         {
             var scaledX = gThread.blockIdx.x * gThread.blockDim.x + gThread.threadIdx.x;
             var scaledY = gThread.blockIdx.y * gThread.blockDim.y + gThread.threadIdx.y;
@@ -512,6 +613,8 @@ namespace Insaniquarium_Deluxe_Bot
             EnhancedScaleImagePixel(sourceImage, sourceWidth, sourceHeight,
             scaledImage, scaledX, scaledY);
         }
+
+
 
         [Cudafy]
         private static float EnhancedScaleImagePixel(GPUColorBGRA[] sourceImage, int sourceWidth, int sourceHeight, float[,,] scaledImage, int scaledX, int scaledY)
@@ -541,6 +644,56 @@ namespace Insaniquarium_Deluxe_Bot
 
             return 0;
         }
+
+        //[Cudafy]
+        //private static float PixelKeyMapping(GThread gThread, GPUColorBGRA[] sourceImage, int[] pixelPos, byte[] keyPos, int sourceWidth, int sourceHeight, float[] pixelOut)
+        //{
+        //    var scaledX = gThread.blockIdx.x * gThread.blockDim.x + gThread.threadIdx.x;
+        //    var scaledY = gThread.blockIdx.y * gThread.blockDim.y + gThread.threadIdx.y;
+        //    var startX = scaledX * sourceWidth / scaledImage.GetLength(0);
+        //    var startY = scaledY * sourceHeight / scaledImage.GetLength(1);
+        //    var endX = (scaledX + 1) * sourceWidth / scaledImage.GetLength(0);
+        //    var endY = (scaledY + 1) * sourceHeight / scaledImage.GetLength(1);
+
+        //    int x=0;
+        //    int y=0;
+        //    foreach (var p in pixelPos)
+        //    {
+        //        x = p % sourceWidth;
+        //        y = p / sourceWidth;
+
+        //        if(x > startX && y < endX && y > startY && y < endY)
+        //        {
+        //            scaledImage[scaledX, scaledY, 0] = sourceImage[p].Red;
+        //            scaledImage[scaledX, scaledY, 1] = sourceImage[p].Green;
+        //            scaledImage[scaledX, scaledY, 2] = sourceImage[p].Blue;
+        //            return 0;
+        //        }
+
+        //    }
+
+
+        //    var sumr = 0f;
+        //    var sumg = 0f;
+        //    var sumb = 0f;
+        //    var count = 0;
+        //    for (var sourceX = startX; sourceX < endX; sourceX++)
+        //    {
+        //        for (var sourceY = startY; sourceY < endY; sourceY++)
+        //        {
+        //            var index = sourceX + sourceY * sourceWidth;
+        //            sumr += sourceImage[index].Red;
+        //            sumg += sourceImage[index].Green;
+        //            sumb += sourceImage[index].Blue;
+        //            count++;
+        //        }
+        //    }
+        //    scaledImage[scaledX, scaledY, 0] = (sumr / count);
+        //    scaledImage[scaledX, scaledY, 1] = (sumg / count);
+        //    scaledImage[scaledX, scaledY, 2] = (sumb / count);
+
+        //    return 0;
+        //}
 
 
         [Cudafy]

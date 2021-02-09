@@ -1,3 +1,6 @@
 [submodule "Vulcan.NET"]
 	path = Vulcan.NET
 	url = https://github.com/susch19/Vulcan.NET.git
+[submodule "HidSharp"]
+	path = HidSharp
+	url = https://github.com/IntergatedCircuits/HidSharp
